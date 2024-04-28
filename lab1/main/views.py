@@ -179,14 +179,14 @@ class LogoutFromAllView(APIView):
         token = request.COOKIES.get('jwt')
         check_token(token)
         DeleteOldSessions()
-        sessions = CustomSession.objects.filter(user = request.user)
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+        user = User.objects.filter(id=payload['user_id']).first()
+        sessions = CustomSession.objects.filter(user = user)
         for session in sessions:
             if session.token != token:
-                token = RefreshToken(token=session.token)
-                token.blacklist()
                 session.delete()
 
-        return Response({"message": "OK, goodbye"})
+        return Response({"Сообщение": "Вы прервали все сеансы кроме текущей"})
 
 # Класс выхода из системы, тут удаляется токен
 class LogoutView(APIView):
