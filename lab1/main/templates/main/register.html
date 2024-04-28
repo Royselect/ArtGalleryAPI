@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Регистрация</title>
+  <style>
+    /* Подключение стилей CSS здесь */
+  </style>
+</head>
+<body>
+  <div>
+    <h2> Регистрация </h2>
+    <form method="post" action="#">
+        {% csrf_token %}
+        <br>
+        {{ form.username.label }}{{ form.username }}
+        <!--<input type="text" class="text" name="username">-->
+            
+            <small style="color: rgb(183, 182, 182)">Логин не должен содержать в себе пробелы, кириллицу и спец. знаки (кроме _ и -)</small>
+            <br>
+            <br>
+        {{ form.password1.label }}{{ form.password1 }}
+        <!--<input type="password" class="text" name="password">-->
+        
+        <small style="color: rgb(183, 182, 182)">Пароль должен состоять из строчных и прописных букв, содержать в себе цифры и специальные знаки (!@#$%^&*)</small>
+        <br>
+        {{ form.password2.label }}{{ form.password2 }}
+        <!--<input type="password" class="text" name="password">-->
+        
+
+        <button type="submit">
+            Create account
+        </button>
+        <hr> 
+        <h3 style="color:#FF0000">{{ error }}</h3>  
+        <hr>
+    </form>
+  
+</div>
+</body>
+</html>

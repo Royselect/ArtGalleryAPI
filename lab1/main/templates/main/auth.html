@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Название страницы</title>
+  <style>
+    /* Подключение стилей CSS здесь */
+  </style>
+</head>
+<body>
+    <div>
+        <h2>Авторизация</h2>
+        <form method="post" action="#">
+            {% csrf_token %}
+            {{ form.username.label }}{{ form.username }}
+            <!--<input type="text" class="text" name="username">-->
+                
+                <br>
+                <br>
+            {{ form.password.label }}{{ form.password }}
+            <!--<input type="password" class="text" name="password">-->
+            
+           
+            <br>
+            
+            <button type="submit">
+                Sign In
+            </button>
+            <hr>
+            <h3 style="color:#FF0000">{{ error }}</h3>   
+        </form>
+      
+      </div>
+    
+</body>
+</html>

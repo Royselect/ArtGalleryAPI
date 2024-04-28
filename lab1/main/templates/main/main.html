@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Главная страница</title>
+  <style>
+    /* Подключение стилей CSS здесь */
+  </style>
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <div>
+        {% csrf_token %}
+        <h1>
+            Вы авторизованны
+        </h1>
+        <br/>
+        <h1>
+            Добро пожаловать, {{ name }}
+        </h1>
+        <form>
+            <a href="{% url 'sec' %}">
+                Проверка
+            </a>
+        </form>
+    </div>
+    <div>
+        <h3>
+            <a style='color: red;' href="">Выйти из аккаунта</a>
+        </h3>
+    </div>
+    {% else %}
+    <div>
+        {% csrf_token %}
+        <h1>
+            <a href="{% url 'auth' %}">Авторизация</a>
+        </h1>
+        <h1>
+            <a href="{% url 'reg' %}">Регистрация</a>
+        </h1>
+    </div>
+    {% endif %}
+</body>
+</html>
