@@ -1,4 +1,4 @@
-from .models import User, Token, TwoFactorAuthCode, CustomSession
+from .models import User, Token, TwoFactorAuthCode, CustomSession, Artwork
 from django.http import JsonResponse
 import jwt
 from django.conf import settings
@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 from rest_framework.exceptions import AuthenticationFailed
-from .serializers import UserSerializer, TokenSerializer
+from .serializers import *
 from django.conf import settings
 from rest_framework_simplejwt.tokens import OutstandingToken, BlacklistedToken
 from rest_framework_simplejwt import token_blacklist
@@ -17,6 +17,21 @@ from datetime import datetime
 from pytz import utc
 import pyotp
 import qrcode
+from .permissions import *
+from django.db.models.signals import post_save, post_delete, pre_save
+from django.core.exceptions import ObjectDoesNotExist
+
+# после регистрации, юзеру дается дефолтная роль
+@receiver(post_save, sender=User)
+def create_profile(sender, instance, created, **kwargs):
+    if created:
+        try:
+            role = CustomRole.objects.get(title='looker')
+            instance.roles.add(role)
+            instance.save()
+        except ObjectDoesNotExist as e:
+            AuthenticationFailed('Роль не была дана!')
+            
 
 # метод проверки токена
 def check_token(token):
@@ -38,18 +53,16 @@ def check_token(token):
     if result_token == False:
         raise AuthenticationFailed('Токен не полностью соответствует!')
     
-    
-    
 
 # защищенное представление
 class SecureClass(APIView):
     def get(self, request):
-        
         token = request.COOKIES.get('jwt')
         check_token(token)
-
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
         user = User.objects.filter(id=payload['user_id']).first()
+        # if not user.is_authenticated:
+        #     raise AuthenticationFailed('Пользователь не в системе!!!')
         serializer = UserSerializer(user)
         return Response(serializer.data)
 
@@ -222,3 +235,147 @@ class Blacklist:
     @classmethod
     def check_token(cls, token):
         return OutstandingToken.objects.filter(token=token, blacklisted=True).exists() or BlacklistedToken.objects.filter(token=token).exists()
+    
+# Выводим картины(могут видеть все)
+class GetArtworksListView(APIView):
+    def get(self, request):
+        arts = Artwork.objects.all()
+        return Response(ArtworksListSerializer(arts, many=True).data)
+    
+# Просмотреть подробности у картины (могут только авторизованные с разрашением на чтение)
+class LookDetailInfoFromArtworks(APIView):
+    permission_classes = [ReadForAll]
+    def get(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if pk:
+            art = get_object_or_404(Artwork, pk=pk)
+            return Response(ArtworksDetailListSerializer(art, many=False).data)
+        
+# Создание картины
+class CreateArtworkView(APIView):
+    permission_classes = [CreateForAll]
+    def post(self, request, *args, **kwargs):
+        serializer = ArtworkCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    
+# изменить книгу могут только либо сам художник, либо админ
+class UpdateArtworkView(APIView):
+    permission_classes = [ArtistOrAdmin]
+    def put(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Ошибка": "Такой картины нет"})
+        art = get_object_or_404(Artwork, pk=pk)
+        serializer = ArtworkCreateSerializer(data=request.data, instance=art, partial = True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    
+    def delete(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Ошибка": "Такой картины нет"})
+        art = get_object_or_404(Artwork, pk=pk)
+        art.delete()
+        return Response({'Внимание': "Запись о данной картине была удалена"})
+
+# Просмотреть все роли и создать может только админ
+class RoleListView(APIView):
+    permission_classes = [AdminOnly]
+    # список ролей
+    def get(self, request, *args, **kwargs):
+        roles = CustomRole.objects.all()
+        return Response(RoleListSerializer(roles, many=True).data)
+    
+    # создание роли
+    def post(self, request, *args, **kwargs):
+        serializer = RoleCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+# Менять роли тоже может только админ    
+class UpdateRoleView(APIView):
+    permission_classes = [AdminOnly]
+    # Изменение роли
+    def put(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Ошибка": "такой роли не существует"})
+        role = get_object_or_404(CustomRole, pk=pk)
+        serializer = RoleCreateSerializer(data=request.data, instance=role, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    # Удаление роли
+    def delete(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Ошибка": "такой роли не существует"})
+        role = get_object_or_404(CustomRole, pk=pk)
+        role.delete()
+        return Response({'Сообщение': "Вы только что удалили роль, браво"})
+
+# Присваивание юзерам роли, и их удаление
+class RoleAddUsers(APIView):
+    permission_classes = [AdminOnly]
+    # Добавление юзеров в роль
+    def post(self, request, *args, **kwargs):
+        pk = request.data["role"]
+        users = request.data["users"]
+        role = get_object_or_404(CustomRole, pk=pk)
+        for user_id in users:
+            user = get_object_or_404(User, pk=user_id)
+            # role.users.add(user)
+            user.roles.add(role)
+        return Response({"Сообщение": "Успешно"})
+
+    # Лишаем юзеров роли
+    def delete(self, request, *args, **kwargs):
+        pk = request.data["role"]
+        users = request.data["users"]
+        role = get_object_or_404(CustomRole, pk=pk)
+        for user_id in users:
+            user = get_object_or_404(User, pk=user_id)
+            user.roles.remove(role)
+        return Response({"Сообщение": "Успешно"})
+    
+# Разрешения
+class PermissionView(APIView):
+    permission_classes = [AdminOnly]
+    # выдаем список разрешений
+    def get(self, request, *args, **kwargs):
+        permissions = CustomPermission.objects.all()
+        return Response(PermissionSerializer(permissions, many=True).data)
+
+    # создаем новое разрешение
+    def post(self, request, *args, **kwargs):
+        serializer = PermissionSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    
+# Изменить разрешение
+class ChangePermissionView(APIView):
+    # Только для админа
+    permission_classes = [AdminOnly]
+
+    def put(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Сообщение": "такого разрешения нет"})
+        permission = get_object_or_404(CustomPermission, pk=pk)
+        serializer = PermissionSerializer(data=request.data, instance=permission, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, *args, **kwargs):
+        pk = request.data['pk']
+        if not pk:
+            return Response({"Сообщение": "такого разрешения не существует"})
+        permission = get_object_or_404(CustomPermission, pk=pk)
+        permission.delete()
+        return Response({"Сообщение": "Браво, разрешение удалено"})

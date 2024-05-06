@@ -1,3 +1,8 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import User, CustomRole, CustomPermission, Artwork
+
+admin.site.register(User)
+admin.site.register(CustomRole)
+admin.site.register(CustomPermission)
+admin.site.register(Artwork)
