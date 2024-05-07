@@ -1,4 +1,4 @@
-from .models import User, Token, TwoFactorAuthCode, CustomSession, Artwork
+from .models import User, Token, TwoFactorAuthCode, CustomSession, Artwork, LogiFromMethods
 from django.http import JsonResponse
 import jwt
 from django.conf import settings
@@ -18,8 +18,14 @@ from pytz import utc
 import pyotp
 import qrcode
 from .permissions import *
-from django.db.models.signals import post_save, post_delete, pre_save
+from django.db.models.signals import post_save
 from django.core.exceptions import ObjectDoesNotExist
+import django.dispatch
+
+def log_methods_use(request, method_name):
+    user = custom_get_user(request)
+    LogiFromMethods.objects.create(method_name = method_name, user=user)
+
 
 # после регистрации, юзеру дается дефолтная роль
 @receiver(post_save, sender=User)
@@ -34,6 +40,7 @@ def create_profile(sender, instance, created, **kwargs):
             
 
 # метод проверки токена
+
 def check_token(token):
     if not token:
         raise AuthenticationFailed('Не прошел проверку!')
@@ -104,7 +111,6 @@ class LoginView(APIView):
         email = request.data['email']
         password = request.data['password']
         user = User.objects.filter(email=email).first()
-
         if user is None:
             raise AuthenticationFailed('Пользователь не найден!!!')
 
@@ -115,10 +121,12 @@ class LoginView(APIView):
         data_user = user
         response = Response()
         response = TokenObtainView(user, data_user)
+        log_methods_use(request, 'auth')
         secondAuth(user)
         return response
     
-def DeleteOldSessions():
+def DeleteOldSessions(request):
+    log_methods_use(request, 'deletesessions')
     # удаляю все просроченные сессии
     sessions = CustomSession.objects.all()
     for session in sessions:
@@ -130,6 +138,7 @@ def DeleteOldSessions():
 # Представление 2FA
 class ConfirmLoginView(APIView):
     def post(self, request):
+        log_methods_use(request, '2FA')
         # На страницу подтверждения двухфакторки нельзя без первичного токена
         token = request.COOKIES.get('jwt')
         check_token(token)
@@ -189,6 +198,7 @@ def secondAuth(user):
 # Выход из всех сессий кроме текущей
 class LogoutFromAllView(APIView):
     def post(self, request):
+        log_methods_use(request, 'logoutfromallsessions')
         token = request.COOKIES.get('jwt')
         check_token(token)
         DeleteOldSessions()
@@ -204,6 +214,7 @@ class LogoutFromAllView(APIView):
 # Класс выхода из системы, тут удаляется токен
 class LogoutView(APIView):
     def post(self, request):
+        log_methods_use(request, 'Logout')
         token = request.COOKIES.get('jwt')
         check_token(token)
         token_delete = Token.objects.filter(token=token).first()
@@ -239,6 +250,7 @@ class Blacklist:
 # Выводим картины(могут видеть все)
 class GetArtworksListView(APIView):
     def get(self, request):
+        log_methods_use(request, 'listart')
         arts = Artwork.objects.all()
         return Response(ArtworksListSerializer(arts, many=True).data)
     
@@ -246,6 +258,7 @@ class GetArtworksListView(APIView):
 class LookDetailInfoFromArtworks(APIView):
     permission_classes = [ReadForAll]
     def get(self, request, *args, **kwargs):
+        log_methods_use(request, 'lookdetailInfo')
         pk = request.data['pk']
         if pk:
             art = get_object_or_404(Artwork, pk=pk)
@@ -255,6 +268,7 @@ class LookDetailInfoFromArtworks(APIView):
 class CreateArtworkView(APIView):
     permission_classes = [CreateForAll]
     def post(self, request, *args, **kwargs):
+        log_methods_use(request, 'createart')
         serializer = ArtworkCreateSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -264,6 +278,7 @@ class CreateArtworkView(APIView):
 class UpdateArtworkView(APIView):
     permission_classes = [ArtistOrAdmin]
     def put(self, request, *args, **kwargs):
+        log_methods_use(request, 'udpadeArt')
         pk = request.data['pk']
         if not pk:
             return Response({"Ошибка": "Такой картины нет"})
@@ -274,6 +289,7 @@ class UpdateArtworkView(APIView):
         return Response(serializer.data)
     
     def delete(self, request, *args, **kwargs):
+        log_methods_use(request, 'deleteart')
         pk = request.data['pk']
         if not pk:
             return Response({"Ошибка": "Такой картины нет"})
@@ -286,11 +302,13 @@ class RoleListView(APIView):
     permission_classes = [AdminOnly]
     # список ролей
     def get(self, request, *args, **kwargs):
+        log_methods_use(request, 'roleList')
         roles = CustomRole.objects.all()
         return Response(RoleListSerializer(roles, many=True).data)
     
     # создание роли
     def post(self, request, *args, **kwargs):
+        log_methods_use(request, 'createRole')
         serializer = RoleCreateSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -301,6 +319,7 @@ class UpdateRoleView(APIView):
     permission_classes = [AdminOnly]
     # Изменение роли
     def put(self, request, *args, **kwargs):
+        log_methods_use(request, 'updateRole')
         pk = request.data['pk']
         if not pk:
             return Response({"Ошибка": "такой роли не существует"})
@@ -311,6 +330,7 @@ class UpdateRoleView(APIView):
         return Response(serializer.data)
     # Удаление роли
     def delete(self, request, *args, **kwargs):
+        log_methods_use(request, 'deleteRole')
         pk = request.data['pk']
         if not pk:
             return Response({"Ошибка": "такой роли не существует"})
@@ -323,6 +343,7 @@ class RoleAddUsers(APIView):
     permission_classes = [AdminOnly]
     # Добавление юзеров в роль
     def post(self, request, *args, **kwargs):
+        log_methods_use(request, 'roleAddForUsers')
         pk = request.data["role"]
         users = request.data["users"]
         role = get_object_or_404(CustomRole, pk=pk)
@@ -334,6 +355,7 @@ class RoleAddUsers(APIView):
 
     # Лишаем юзеров роли
     def delete(self, request, *args, **kwargs):
+        log_methods_use(request, 'deleteRole')
         pk = request.data["role"]
         users = request.data["users"]
         role = get_object_or_404(CustomRole, pk=pk)
@@ -347,11 +369,13 @@ class PermissionView(APIView):
     permission_classes = [AdminOnly]
     # выдаем список разрешений
     def get(self, request, *args, **kwargs):
+        log_methods_use(request, 'permisList')
         permissions = CustomPermission.objects.all()
         return Response(PermissionSerializer(permissions, many=True).data)
 
     # создаем новое разрешение
     def post(self, request, *args, **kwargs):
+        log_methods_use(request, 'createPermission')
         serializer = PermissionSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -363,6 +387,7 @@ class ChangePermissionView(APIView):
     permission_classes = [AdminOnly]
 
     def put(self, request, *args, **kwargs):
+        log_methods_use(request, 'changePermis')
         pk = request.data['pk']
         if not pk:
             return Response({"Сообщение": "такого разрешения нет"})
@@ -373,6 +398,7 @@ class ChangePermissionView(APIView):
         return Response(serializer.data)
 
     def delete(self, request, *args, **kwargs):
+        log_methods_use(request, 'deletePermis')
         pk = request.data['pk']
         if not pk:
             return Response({"Сообщение": "такого разрешения не существует"})

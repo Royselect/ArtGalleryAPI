@@ -4,6 +4,8 @@ User = get_user_model()
 from .models import *
 from django.shortcuts import get_object_or_404
 import jwt
+from rest_framework.exceptions import AuthenticationFailed
+
 
 # Проверка разрешения на чтение
 class ReadForAll(permissions.BasePermission):
@@ -74,7 +76,9 @@ def get_user_permissions(user):
     return user_permissions
 
 def custom_get_user(request):
-    token = request.COOKIES.get('jwt')
+    token = request.COOKIES.get('jwt', False)
+    if not token:
+        return None
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
     user = User.objects.filter(id=payload['user_id']).first()
     return user

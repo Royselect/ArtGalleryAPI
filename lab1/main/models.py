@@ -94,3 +94,10 @@ class Artwork(models.Model):
 
     def __str__(self):
         return f'{self.title}'
+    
+class LogiFromMethods(models.Model):
+    method_name = models.CharField(max_length=100, null=False)
+    user = models.ForeignKey(User, db_index=True, null=True, on_delete=models.CASCADE)
+    usage_time = models.DateTimeField(auto_now_add=True)
+
+    

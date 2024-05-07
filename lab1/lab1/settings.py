@@ -46,8 +46,15 @@ INSTALLED_APPS = [
     'djoser',
     'rest_framework.authtoken',
     'corsheaders',
-    
+    'django_cron',
+
 ]
+
+CRON_CLASSES = [
+    'main.cron.CreateLog',
+]
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -128,7 +135,8 @@ SESSIONS_COUNT = 2
 
 # Время жизни кода подстверждения
 CONFIRM_CODE_TIME = timedelta(minutes=1)
-
+CRONS_PERIOD_IN_MINS = 1 
+CRON_COLLECT_STATISTICS_IN_MINS = 1 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/

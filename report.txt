@@ -1,0 +1,8 @@
+Method Call Report:
+listart: 41
+auth: 9
+roleList: 4
+udpadeArt: 2
+lookdetailInfo: 2
+Logout: 2
+createart: 1
